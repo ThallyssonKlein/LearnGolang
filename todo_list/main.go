@@ -1,10 +1,14 @@
 package main
 
-import "fmt"
+import (
+	"fmt"
+	"encoding/json"
+	"os"
+)
 
 type Task struct {
-	Title string
-	Done bool
+	Title string `json:title`
+	Done bool `json:done`
 }
 
 func main() {
@@ -12,7 +16,7 @@ func main() {
 	var tasks []Task
 
 	for true {
-		fmt.Printf("Select 1 to Add and 2 to List and 3 to exit and 4 to check items: ")
+		fmt.Printf("Select 1 to Add and 2 to List and 3 to exit and 4 to check items, 5 to save tasks to json: ")
 		fmt.Scan(&option)
 
 		if option == 3 {
@@ -37,6 +41,18 @@ func main() {
 			var check int
 			fmt.Scan(&check)
 			if check == 1 { tasks[taskId].Done = true } else { tasks[taskId].Done = false }
+		} else if option == 5 {
+			jsonData, err := json.MarshalIndent(tasks, "", " ")
+			if err != nil {
+				fmt.Println("Error converting to JSON", err)
+			}
+
+			var err2 = os.WriteFile("tasks.json", jsonData, 0644)
+			if err2 != nil {
+				fmt.Println("Error saving the file: ", err2)
+			}
+
+			fmt.Println("File saved successfully!")
 		}
 	}
 }
