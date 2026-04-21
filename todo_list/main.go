@@ -7,6 +7,8 @@ import (
 	"time"
 	"os"
 	"strings"
+	"sync"
+	"strconv"
 )
 
 type Task struct {
@@ -65,12 +67,28 @@ type TaskEdit struct {
 // 	}
 // }
 
-var tasks []Task
+type TaskStore struct {
+	mu		sync.Mutex
+	tasks   []Task
+	nextID  int
+}
+
+var store = &TaskStore{
+	tasks:	[]Task{},
+	nextID: 1,
+}
 
 func main() {
-	http.HandleFunc("/ping", pingHandler)
-	http.HandleFunc("/task", tasksHandler)
-	http.HandleFunc("/save_tasks", saveTasksHandler)
+	mux := http.NewServeMux()
+
+	http.HandleFunc("GET /ping", pingHandler)
+	http.HandleFunc("POST /task", saveTasksHandler)
+	http.HandleFunc("GET /task", listTasksHandler)
+	http.HandleFunc("PUT /task/{id}", updateTaskHandler)
+	http.HandleFunc("POST /save_tasks", saveFileHandler)
+
+	fmt.Println("Server running on :8080")
+	http.ListenAndServe(":8080", mux)
 }
 
 func pingHandler(w http.ResponseWriter, r *http.Request) {
@@ -80,48 +98,67 @@ func pingHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func saveTasksHandler(w http.ResponseWriter, r *http.Request) {
-	//
+	var t Task
+	if err := json.NewDecoder(r.Body).Decode(&t); err != nil {
+		http.Error(w, "JSON Invalido", http.StatusBadRequest)
+		return
+	}
+	
+	store.mu.Lock()
+	defer store.mu.Unlock()
+	t.Id = store.nextID
+	store.nextID++
+	store.tasks = append(store.tasks, t)
+
+	w.WriteHeader(http.StatusCreated)
+	json.NewEncoder(w).Encode(t)
 }
 
-func tasksHandler(w http.ResponseWriter, r *http.Request) {
-	pathParts := strings.Split(r.URL.Path, "/")
-	id := ""
-	if len(pathParts) > 2 {
-		id = pathParts[2]
-	}
+func listTasksHandler(w http.ResponseWriter, r *http.Request) {
+	store.mu.Lock()
+	defer store.mu.Unlock()
 
-	if id == "" {
-		switch r.Method {
-			case http.MethodPost:
-				createTask(w, r)
-			case http.MethodGet:
-				// find all tasks
-		}
-	} else {
-		if (r.Method == http.MethodPatch) {
-			// check one task
-		}
-	}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(store.tasks)
 }
 
-func findTaskById(id int) (Task, bool){
-	for _, task := range tasks {
-		if task.Id == id {
-			return task, true
-		}
-	}
+func updateTaskHandler(w http.ResponseWriter, r *http.Request) {
+	id, _ := strconv.Atoi(r.PathValue(("id")))
+	var tEdit TaskEdit
 
-	return Task{}, false
-}
-
-func updateTask(w http.ResponseWriter, r *http.Request, id int) {
-	var taskEdit TaskEdit
-	err := json.NewDecoder(r.Body).Decode(&taskEdit)
-
-	if err != nil {
-		http.Error(w, "Invalid body!", http.StatusBadRequest)
+	if err := json.NewDecoder(r.Body).Decode(&tEdit); err != nil {
+		http.Error(w, "JSOn Invalido", http.StatusBadRequest)
 		return
 	}
 
-	var task := findTaskById(id)
+	store.mu.Lock()
+	defer store.mu.Unlock()
+
+	for i, task := range store.tasks {
+		if task.Id == id {
+			store.tasks[i].Done = tEdit.Done
+
+			w.WriteHeader(http.StatusOK)
+			return
+		}
+	}
+}
+
+
+func saveFileHandler(w http.ResponseWriter, r *http.Request) {
+	store.mu.Lock()
+	defer store.mu.Unlock()
+	jsonData, err := json.MarshalIndent(store.tasks, "", " ")
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	var err2 = os.WriteFile("tasks.json", jsonData, 0644)
+	if err2 != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
 }
