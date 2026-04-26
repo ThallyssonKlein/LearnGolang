@@ -26,16 +26,29 @@ func main(){
 	c := &Cache {
 		data: make(map[string]string),
 	}
+	var wg sync.WaitGroup
 
 	for i := 0; i < 100; i++ {
 		random := rand.Intn(3) + 1
 		switch random {
 		case 1:
-			go c.Set("chave1", "value")
+			wg.Add(1)
+			go func () {
+				defer wg.Done()
+				c.Set("chave1", "value")
+			}()
 		case 2:
-			go c.Set("chave2", "value")
+			wg.Add(1)
+			go func () {
+				defer wg.Done()
+				c.Set("chave2", "value")
+			}()
 		case 3:
-			go c.Set("chave3", "value")
+			wg.Add(1)
+			go func () {
+				defer wg.Done()
+				c.Set("chave3", "value")
+			}()
 		}
 	}
 
@@ -43,11 +56,25 @@ func main(){
 		random := rand.Intn(3) + 1
 		switch random {
 		case 1:
-			go c.Get("chave1")
+			wg.Add(1)
+			go func () {
+				defer wg.Done()
+				c.Get("chave1")
+			}()
 		case 2:
-			go c.Get("chave2")
+			wg.Add(1)
+			go func () {
+				defer wg.Done()
+				c.Get("chave2")
+			}()
 		case 3:
-			go c.Get("chave3")
+			wg.Add(1)
+			go func () {
+				defer wg.Done()
+				c.Get("chave3")
+			}()
 		}
 	}
+
+	wg.Wait()
 }
