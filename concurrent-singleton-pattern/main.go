@@ -5,6 +5,8 @@ import (
 	"sync"
 )
 
+var once sync.Once
+
 type Database struct {
 	Connection string
 }
@@ -12,7 +14,6 @@ type Database struct {
 var instance *Database
 
 func GetInstance() *Database {
-	var once sync.Once
 	once.Do(func() {
 		if instance == nil {
 			instance = &Database{Connection: "Connected"}
@@ -20,7 +21,7 @@ func GetInstance() *Database {
 	})
 
 	fmt.Printf("%p\n", instance)
-	
+
 	return instance
 }
 
